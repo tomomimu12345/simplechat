@@ -131,7 +131,7 @@ def lambda_handler(event, context):
         }).encode("utf-8")
 
         request = urllib.request.Request(
-            url="https://ed82-34-34-44-102.ngrok-free.app",
+            url="https://ed82-34-34-44-102.ngrok-free.app/generate",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST"
