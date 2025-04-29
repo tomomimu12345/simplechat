@@ -137,7 +137,7 @@ def lambda_handler(event, context):
             method="POST"
         )
 
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=100) as response:
             response_data = json.loads(response.read().decode("utf-8"))
 
         assistant_response = response_data["generated_text"]
