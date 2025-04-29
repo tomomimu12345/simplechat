@@ -3,6 +3,8 @@ import json
 import os
 import boto3
 import re  # 正規表現モジュールをインポート
+import urllib.error
+import urllib.request
 from botocore.exceptions import ClientError
 
 
@@ -56,57 +58,96 @@ def lambda_handler(event, context):
         
         # Nova Liteモデル用のリクエストペイロードを構築
         # 会話履歴を含める
-        bedrock_messages = []
+        # bedrock_messages = []
+        # for msg in messages:
+        #     if msg["role"] == "user":
+        #         bedrock_messages.append({
+        #             "role": "user",
+        #             "content": [{"text": msg["content"]}]
+        #         })
+        #     elif msg["role"] == "assistant":
+        #         bedrock_messages.append({
+        #             "role": "assistant", 
+        #             "content": [{"text": msg["content"]}]
+        #         })
+
+        # プロンプトの構築（履歴をまとめてプロンプトにする）
+        prompt = ""
         for msg in messages:
             if msg["role"] == "user":
-                bedrock_messages.append({
-                    "role": "user",
-                    "content": [{"text": msg["content"]}]
-                })
+                prompt += f"User: {msg['content']}\n"
             elif msg["role"] == "assistant":
-                bedrock_messages.append({
-                    "role": "assistant", 
-                    "content": [{"text": msg["content"]}]
-                })
+                prompt += f"Assistant: {msg['content']}\n"
+        prompt += "Assistant:"
+
         
         # invoke_model用のリクエストペイロード
-        request_payload = {
-            "messages": bedrock_messages,
-            "inferenceConfig": {
-                "maxTokens": 512,
-                "stopSequences": [],
-                "temperature": 0.7,
-                "topP": 0.9
-            }
-        }
+        # request_payload = {
+        #     "messages": bedrock_messages,
+        #     "inferenceConfig": {
+        #         "maxTokens": 512,
+        #         "stopSequences": [],
+        #         "temperature": 0.7,
+        #         "topP": 0.9
+        #     }
+        # }
         
-        print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
+        # print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
         
-        # invoke_model APIを呼び出し
-        response = bedrock_client.invoke_model(
-            modelId=MODEL_ID,
-            body=json.dumps(request_payload),
-            contentType="application/json"
+        # # invoke_model APIを呼び出し
+        # response = bedrock_client.invoke_model(
+        #     modelId=MODEL_ID,
+        #     body=json.dumps(request_payload),
+        #     contentType="application/json"
+        # )
+        
+        # # レスポンスを解析
+        # response_body = json.loads(response['body'].read())
+        # print("Bedrock response:", json.dumps(response_body, default=str))
+        
+        # # 応答の検証
+        # if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
+        #     raise Exception("No response content from the model")
+        
+        # # アシスタントの応答を取得
+        # assistant_response = response_body['output']['message']['content'][0]['text']
+        
+        # # アシスタントの応答を会話履歴に追加
+        # messages.append({
+        #     "role": "assistant",
+        #     "content": assistant_response
+        # })
+        
+
+        # ローカルAPIにPOST
+
+        # リクエストデータ
+        payload = json.dumps({
+            "prompt": prompt,
+            "max_new_tokens": 512,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "do_sample": True
+        }).encode("utf-8")
+
+        request = urllib.request.Request(
+            url="http://localhost:8000/generate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
         )
-        
-        # レスポンスを解析
-        response_body = json.loads(response['body'].read())
-        print("Bedrock response:", json.dumps(response_body, default=str))
-        
-        # 応答の検証
-        if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
-            raise Exception("No response content from the model")
-        
-        # アシスタントの応答を取得
-        assistant_response = response_body['output']['message']['content'][0]['text']
-        
+
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response_data = json.loads(response.read().decode("utf-8"))
+
+        assistant_response = response_data["generated_text"]
         # アシスタントの応答を会話履歴に追加
         messages.append({
             "role": "assistant",
             "content": assistant_response
         })
-        
-        # 成功レスポンスの返却
+
+        # # 成功レスポンスの返却
         return {
             "statusCode": 200,
             "headers": {
